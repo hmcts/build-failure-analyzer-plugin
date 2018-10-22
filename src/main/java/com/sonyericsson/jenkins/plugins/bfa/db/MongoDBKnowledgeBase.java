@@ -26,12 +26,16 @@ package com.sonyericsson.jenkins.plugins.bfa.db;
 import com.mongodb.AggregationOutput;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
-import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
 import com.mongodb.DBRef;
-import com.mongodb.Mongo;
+import com.mongodb.MongoClient;
+import com.mongodb.MongoClientOptions;
+import com.mongodb.MongoCredential;
 import com.mongodb.MongoException;
+import com.mongodb.ServerAddress;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
 import com.sonyericsson.jenkins.plugins.bfa.Messages;
 import com.sonyericsson.jenkins.plugins.bfa.graphs.FailureCauseTimeInterval;
 import com.sonyericsson.jenkins.plugins.bfa.graphs.GraphFilterBuilder;
@@ -48,9 +52,6 @@ import hudson.model.Run;
 import hudson.util.FormValidation;
 import hudson.util.Secret;
 import jenkins.model.Jenkins;
-import net.vz.mongodb.jackson.DBCursor;
-import net.vz.mongodb.jackson.JacksonDBCollection;
-import net.vz.mongodb.jackson.WriteResult;
 import org.apache.commons.collections.keyvalue.MultiKey;
 import org.bson.types.ObjectId;
 import org.jfree.data.time.Day;
@@ -59,8 +60,11 @@ import org.jfree.data.time.Month;
 import org.jfree.data.time.TimePeriod;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
+import org.mongojack.DBCursor;
+import org.mongojack.JacksonDBCollection;
+import org.mongojack.JacksonMongoCollection;
+import org.mongojack.WriteResult;
 
-import javax.naming.AuthenticationException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -79,6 +83,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.naming.AuthenticationException;
 
 import static java.util.Arrays.asList;
 
@@ -101,12 +106,12 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
     static final BasicDBObject NOT_REMOVED_QUERY = new BasicDBObject("_removed", new BasicDBObject("$exists", false));
     private static final Logger logger = Logger.getLogger(MongoDBKnowledgeBase.class.getName());
 
-    private transient Mongo mongo;
-    private transient DB db;
-    private transient DBCollection collection;
-    private transient DBCollection statisticsCollection;
-    private transient JacksonDBCollection<FailureCause, String> jacksonCollection;
-    private transient JacksonDBCollection<Statistics, String> jacksonStatisticsCollection;
+    private transient MongoClient mongo;
+    private transient MongoDatabase db;
+    private transient MongoCollection collection;
+    private transient MongoCollection statisticsCollection;
+    private transient JacksonMongoCollection<FailureCause> jacksonCollection;
+    private transient JacksonMongoCollection<Statistics> jacksonStatisticsCollection;
     private transient MongoDBKnowledgeBaseCache cache;
 
     private String host;
@@ -486,7 +491,7 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
         List<FailureCauseStatistics> failureCauseStatisticsList = stat.getFailureCauseStatisticsList();
         addFailureCausesToDBObject(object, failureCauseStatisticsList);
 
-        getStatisticsCollection().insert(object);
+        getStatisticsCollection().insertOne(object);
        }
 
     @Override
@@ -1020,7 +1025,7 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
             for (FailureCauseStatistics failureCauseStatistics : failureCauseStatisticsList) {
                 DBObject failureCauseStatisticsObject = new BasicDBObject();
                 ObjectId id = new ObjectId(failureCauseStatistics.getId());
-                DBRef failureCauseRef = new DBRef(getDb(), COLLECTION_NAME, id);
+                DBRef failureCauseRef = new DBRef(dbName, COLLECTION_NAME, id);
                 failureCauseStatisticsObject.put("failureCause", failureCauseRef);
                 List<FoundIndication> foundIndicationList = failureCauseStatistics.getIndications();
                 addIndicationsToDBObject(failureCauseStatisticsObject, foundIndicationList);
@@ -1059,9 +1064,14 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
      * @return the Mongo.
      * @throws UnknownHostException if the host cannot be found.
      */
-    private Mongo getMongoConnection() throws UnknownHostException {
+    private MongoClient getMongoConnection() throws UnknownHostException {
         if (mongo == null) {
-            mongo = new Mongo(host, port);
+            char[] pwd = password.getPlainText().toCharArray();
+
+            MongoCredential credential = MongoCredential
+                    .createCredential(userName, dbName, pwd);
+            mongo = new MongoClient(new ServerAddress(host, port), credential, MongoClientOptions
+                    .builder().build());
         }
         return mongo;
     }
@@ -1072,16 +1082,11 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
      * @throws UnknownHostException if the host cannot be found.
      * @throws AuthenticationException if we cannot authenticate towards the database.
      */
-    private DB getDb() throws UnknownHostException, AuthenticationException {
+    private MongoDatabase getDb() throws UnknownHostException, AuthenticationException {
         if (db == null) {
-            db = getMongoConnection().getDB(dbName);
+            db = getMongoConnection().getDatabase(dbName);
         }
-        if (Util.fixEmpty(userName) != null && Util.fixEmpty(Secret.toString(password)) != null) {
-            char[] pwd = password.getPlainText().toCharArray();
-            if (!db.authenticate(userName, pwd)) {
-                throw new AuthenticationException("Could not athenticate with the mongo database");
-            }
-        }
+
         return db;
     }
 
@@ -1091,7 +1096,7 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
      * @throws UnknownHostException if the host cannot be found.
      * @throws AuthenticationException if we cannot authenticate towards the database.
      */
-    private DBCollection getCollection() throws UnknownHostException, AuthenticationException {
+    private MongoCollection getCollection() throws UnknownHostException, AuthenticationException {
         if (collection == null) {
             collection = getDb().getCollection(COLLECTION_NAME);
         }
@@ -1104,7 +1109,7 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
      * @throws UnknownHostException if the host cannot be found.
      * @throws AuthenticationException if we cannot authenticate towards the database.
      */
-    private synchronized DBCollection getStatisticsCollection() throws UnknownHostException, AuthenticationException {
+    private synchronized MongoCollection getStatisticsCollection() throws UnknownHostException, AuthenticationException {
         if (statisticsCollection == null) {
             statisticsCollection = getDb().getCollection(STATISTICS_COLLECTION_NAME);
         }
@@ -1117,13 +1122,13 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
      * @throws UnknownHostException if the host cannot be found.
      * @throws AuthenticationException if we cannot authenticate towards the database.
      */
-    private synchronized JacksonDBCollection<FailureCause, String> getJacksonCollection()
+    private synchronized JacksonMongoCollection<FailureCause> getJacksonCollection()
             throws UnknownHostException, AuthenticationException {
         if (jacksonCollection == null) {
             if (collection == null) {
                 collection = getCollection();
             }
-            jacksonCollection = JacksonDBCollection.wrap(collection, FailureCause.class, String.class);
+            jacksonCollection = JacksonMongoCollection.<FailureCause>builder().build(collection, FailureCause.class);
         }
         return jacksonCollection;
     }
@@ -1231,6 +1236,8 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
                 @QueryParameter("dbName") final String dbName,
                 @QueryParameter("userName") final String userName,
                 @QueryParameter("password") final String password) {
+            logger.info(String
+                    .format("Testing connection args, host: %s, port: %d, dbName: %s, userName: %s", host, port, dbName, userName));
             MongoDBKnowledgeBase base = new MongoDBKnowledgeBase(host, port, dbName, userName,
                     Secret.fromString(password), false, false);
             try {

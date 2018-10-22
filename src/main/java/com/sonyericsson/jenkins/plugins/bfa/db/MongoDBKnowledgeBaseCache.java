@@ -28,6 +28,7 @@ import com.mongodb.MongoException;
 import com.sonyericsson.jenkins.plugins.bfa.model.FailureCause;
 import net.vz.mongodb.jackson.DBCursor;
 import net.vz.mongodb.jackson.JacksonDBCollection;
+import org.mongojack.JacksonMongoCollection;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -51,7 +52,7 @@ public class MongoDBKnowledgeBaseCache {
     private TimerTask timerTask;
     private List<FailureCause> cachedFailureCauses;
     private List<String> categories;
-    private JacksonDBCollection<FailureCause, String> jacksonCollection;
+    private JacksonMongoCollection<FailureCause> jacksonCollection;
 
     private static final long CACHE_UPDATE_INTERVAL = 60000;
     private static final Logger logger = Logger.getLogger(MongoDBKnowledgeBase.class.getName());
@@ -60,7 +61,7 @@ public class MongoDBKnowledgeBaseCache {
      * Standard constructor.
      * @param jacksonCollection the JacksonDBCollection, used for accessing the database.
      */
-    public MongoDBKnowledgeBaseCache(JacksonDBCollection<FailureCause, String> jacksonCollection) {
+    public MongoDBKnowledgeBaseCache(JacksonMongoCollection<FailureCause> jacksonCollection) {
         this.jacksonCollection = jacksonCollection;
     }
 
