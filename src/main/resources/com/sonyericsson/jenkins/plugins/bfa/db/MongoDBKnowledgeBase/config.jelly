@@ -22,7 +22,7 @@
   ~ THE SOFTWARE.
   -->
 <?jelly escape-by-default='true'?>
-<j:jelly xmlns:j="jelly:core" xmlns:f="/lib/form">
+<j:jelly xmlns:j="jelly:core" xmlns:f="/lib/form" xmlns:c="/lib/credentials">
     <f:entry title="${%Host}">
         <f:textbox name="host" value="${instance.host}"
                 checkUrl="'${rootURL}/plugin/build-failure-analyzer/knowledgeBaseDescriptor/MongoDBKnowledgeBaseDescriptor/checkHost?value='+escape(this.value)"/>
@@ -35,12 +35,11 @@
         <f:textbox name="dbName" value="${instance.dbName}"
                    checkUrl="'${rootURL}/plugin/build-failure-analyzer/knowledgeBaseDescriptor/MongoDBKnowledgeBaseDescriptor/checkDBName?value='+escape(this.value)"/>
     </f:entry>
-    <f:entry title="${%Username}" description="${%MongoDBKnowledgeBase_UserNameDesc}">
-        <f:textbox name="userName" value="${instance.userName}"/>
+
+    <f:entry title="${%Credential}" field="credentialId">
+        <c:select/>
     </f:entry>
-    <f:entry title="${%Password}" description="${%MongoDBKnowledgeBase_PasswordDesc}">
-        <f:password name="password" value="${instance.password}"/>
-    </f:entry>
+
     <f:entry title="${%Enable statistics logging}">
         <f:checkbox name="enableStatistics" default="true" checked="${instance.isStatisticsEnabled()}"/>
     </f:entry>

@@ -40,14 +40,12 @@ import com.sonyericsson.jenkins.plugins.bfa.model.ScannerJobProperty;
 import com.sonyericsson.jenkins.plugins.bfa.model.indication.BuildLogIndication;
 import hudson.Util;
 import hudson.model.FreeStyleProject;
-import hudson.util.Secret;
 import org.apache.commons.lang.StringUtils;
 import org.jvnet.hudson.test.HudsonTestCase;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 import org.powermock.reflect.Whitebox;
 
-import javax.servlet.http.HttpSession;
 import java.text.DateFormat;
 import java.util.Collection;
 import java.util.Collections;
@@ -55,6 +53,7 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import javax.servlet.http.HttpSession;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
@@ -266,7 +265,7 @@ public class CauseManagementHudsonTest extends HudsonTestCase {
      * @throws Exception if so.
      */
     public void testNoMongoDB() throws Exception {
-        KnowledgeBase kb = new MongoDBKnowledgeBase("someurl", 1234, "somedb", "user", Secret.fromString("pass"),
+        KnowledgeBase kb = new MongoDBKnowledgeBase("someurl", 1234, "credentialId", "somedb",
                 false, false);
         Whitebox.setInternalState(PluginImpl.getInstance(), kb);
         WebClient web = createWebClient();

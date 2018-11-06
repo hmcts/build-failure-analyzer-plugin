@@ -23,6 +23,12 @@
  */
 package com.sonyericsson.jenkins.plugins.bfa.db;
 
+import com.cloudbees.plugins.credentials.CredentialsMatcher;
+import com.cloudbees.plugins.credentials.CredentialsMatchers;
+import com.cloudbees.plugins.credentials.CredentialsProvider;
+import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
+import com.cloudbees.plugins.credentials.common.StandardUsernameCredentials;
+import com.cloudbees.plugins.credentials.common.UsernamePasswordCredentials;
 import com.mongodb.AggregationOutput;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
@@ -44,9 +50,11 @@ import com.sonyericsson.jenkins.plugins.bfa.utils.ObjectCountPair;
 import hudson.Extension;
 import hudson.Util;
 import hudson.model.Descriptor;
+import hudson.model.Item;
 import hudson.model.Run;
+import hudson.security.ACL;
 import hudson.util.FormValidation;
-import hudson.util.Secret;
+import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
 import net.vz.mongodb.jackson.DBCursor;
 import net.vz.mongodb.jackson.JacksonDBCollection;
@@ -57,10 +65,10 @@ import org.jfree.data.time.Day;
 import org.jfree.data.time.Hour;
 import org.jfree.data.time.Month;
 import org.jfree.data.time.TimePeriod;
+import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 
-import javax.naming.AuthenticationException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -79,7 +87,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.naming.AuthenticationException;
 
+import static com.cloudbees.plugins.credentials.CredentialsProvider.lookupCredentials;
 import static java.util.Arrays.asList;
 
 /**
@@ -112,26 +122,9 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
     private String host;
     private int port;
     private String dbName;
-    private String userName;
-    private Secret password;
     private boolean enableStatistics;
     private boolean successfulLogging;
-
-    /**
-     * Getter for the MongoDB user name.
-     * @return the user name.
-     */
-    public String getUserName() {
-        return userName;
-    }
-
-    /**
-     * Getter for the MongoDB password.
-     * @return the password.
-     */
-    public Secret getPassword() {
-        return password;
-    }
+    private String credentialId;
 
    /**
      * Getter for the host value.
@@ -157,26 +150,27 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
         return dbName;
     }
 
+    public String getCredentialId() {
+        return credentialId;
+    }
+
     /**
      * Standard constructor.
      * @param host the host to connect to.
      * @param port the port to connect to.
+     * @param credentialId the credential id for mongo to use
      * @param dbName the database name to connect to.
-     * @param userName the user name for the database.
-     * @param password the password for the database.
      * @param enableStatistics if statistics logging should be enabled or not.
      * @param successfulLogging if all builds should be logged to the statistics DB
      */
     @DataBoundConstructor
-    public MongoDBKnowledgeBase(String host, int port, String dbName, String userName, Secret password,
-                                boolean enableStatistics, boolean successfulLogging) {
+    public MongoDBKnowledgeBase(String host, int port, String credentialId, String dbName, boolean enableStatistics, boolean successfulLogging) {
         this.host = host;
         this.port = port;
         this.dbName = dbName;
-        this.userName = userName;
-        this.password = password;
         this.enableStatistics = enableStatistics;
         this.successfulLogging = successfulLogging;
+        this.credentialId = credentialId;
     }
 
     @Override
@@ -409,8 +403,7 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
             return equals(oldMongoDBKnowledgeBase.getHost(), host)
                     && oldMongoDBKnowledgeBase.getPort() == port
                     && equals(oldMongoDBKnowledgeBase.getDbName(), dbName)
-                    && equals(oldMongoDBKnowledgeBase.getUserName(), userName)
-                    && equals(oldMongoDBKnowledgeBase.getPassword(), password)
+                    && equals(oldMongoDBKnowledgeBase.getCredentialId(), credentialId)
                     && this.enableStatistics == oldMongoDBKnowledgeBase.enableStatistics
                     && this.successfulLogging == oldMongoDBKnowledgeBase.successfulLogging;
         } else {
@@ -1076,13 +1069,23 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
         if (db == null) {
             db = getMongoConnection().getDB(dbName);
         }
-        if (Util.fixEmpty(userName) != null && Util.fixEmpty(Secret.toString(password)) != null) {
-            char[] pwd = password.getPlainText().toCharArray();
-            if (!db.authenticate(userName, pwd)) {
-                throw new AuthenticationException("Could not athenticate with the mongo database");
+        if (Util.fixEmpty(credentialId) != null) {
+            UsernamePasswordCredentials credential = lookupCredential(credentialId);
+
+            if (credential != null) {
+                char[] pwd = credential.getPassword().getPlainText().toCharArray();
+                if (!db.authenticate(credential.getUsername(), pwd)) {
+                    throw new AuthenticationException("Could not authenticate with the mongo database");
+                }
             }
         }
         return db;
+    }
+
+    private UsernamePasswordCredentials lookupCredential(String credentialId) {
+        List<UsernamePasswordCredentials> credentials = lookupCredentials(UsernamePasswordCredentials.class, Jenkins.getInstance(), ACL.SYSTEM, Collections.emptyList());
+        CredentialsMatcher matcher = CredentialsMatchers.withId(credentialId);
+        return CredentialsMatchers.firstOrNull(credentials, matcher);
     }
 
     /**
@@ -1215,24 +1218,54 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
             }
         }
 
+        public ListBoxModel doFillCredentialIdItems(
+                @AncestorInPath Item context,
+                @QueryParameter String credentialsId
+        ) {
+            logger.info("I got called doFillCredentialIdItems");
+            StandardListBoxModel result = new StandardListBoxModel();
+
+            if (context == null) {
+                Jenkins jenkins = Jenkins.getInstanceOrNull();
+                if (jenkins == null) {
+                    throw new IllegalStateException("Jenkins has not been started, or was already shut down");
+                }
+                if (!jenkins.hasPermission(Jenkins.ADMINISTER)) {
+                    return result.includeCurrentValue(credentialsId);
+                }
+            } else {
+                if (!context.hasPermission(Item.EXTENDED_READ)
+                        && !context.hasPermission(CredentialsProvider.USE_ITEM)) {
+                    return result.includeCurrentValue(credentialsId);
+                }
+            }
+            return new StandardListBoxModel()
+                    .includeEmptyValue()
+                    .includeMatchingAs(
+                            ACL.SYSTEM,
+                            context,
+                            StandardUsernameCredentials.class,
+                            Collections.emptyList(),
+                            CredentialsMatchers.always())
+                    .includeCurrentValue(credentialsId);
+        }
+
         /**
          * Tests if the provided parameters can connect to the Mongo database.
          * @param host the host name.
+         * @param credentialId the credential id to authenticate with
          * @param port the port.
          * @param dbName the database name.
-         * @param userName the user name.
-         * @param password the password.
          * @return {@link FormValidation#ok() } if can be done,
          *         {@link FormValidation#error(java.lang.String) } otherwise.
          */
         public FormValidation doTestConnection(
                 @QueryParameter("host") final String host,
+                @QueryParameter("credentialId") final String credentialId,
                 @QueryParameter("port") final int port,
-                @QueryParameter("dbName") final String dbName,
-                @QueryParameter("userName") final String userName,
-                @QueryParameter("password") final String password) {
-            MongoDBKnowledgeBase base = new MongoDBKnowledgeBase(host, port, dbName, userName,
-                    Secret.fromString(password), false, false);
+                @QueryParameter("dbName") final String dbName
+        ) {
+            MongoDBKnowledgeBase base = new MongoDBKnowledgeBase(host, port, credentialId,  dbName, false, false);
             try {
                 base.getCollection();
             } catch (Exception e) {
