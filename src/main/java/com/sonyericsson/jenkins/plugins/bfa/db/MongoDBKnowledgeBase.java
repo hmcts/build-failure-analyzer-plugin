@@ -1222,7 +1222,6 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
                 @AncestorInPath Item context,
                 @QueryParameter String credentialsId
         ) {
-            logger.info("I got called doFillCredentialIdItems");
             StandardListBoxModel result = new StandardListBoxModel();
 
             if (context == null) {
