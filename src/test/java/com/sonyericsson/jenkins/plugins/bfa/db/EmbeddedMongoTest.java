@@ -82,7 +82,7 @@ public abstract class EmbeddedMongoTest {
             runtime = MongodStarter.getDefaultInstance();
         }
 
-        IMongodConfig conf = new MongodConfigBuilder().version(Version.Main.V2_4).build();
+        IMongodConfig conf = new MongodConfigBuilder().version(Version.Main.V3_6).build();
         MongodExecutable mongodExe = runtime.prepare(conf);
         mongodExe.start();
 
