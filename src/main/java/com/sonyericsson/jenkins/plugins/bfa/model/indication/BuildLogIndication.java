@@ -24,6 +24,7 @@
  */
 package com.sonyericsson.jenkins.plugins.bfa.model.indication;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.sonyericsson.jenkins.plugins.bfa.Messages;
 import com.sonyericsson.jenkins.plugins.bfa.model.BuildLogFailureReader;
 import com.sonyericsson.jenkins.plugins.bfa.model.FailureReader;
@@ -87,6 +88,7 @@ public class BuildLogIndication extends Indication {
     }
 
     @Override
+    @JsonIgnore
     public IndicationDescriptor getDescriptor() {
         return Hudson.getInstance().getDescriptorByType(BuildLogIndicationDescriptor.class);
     }

@@ -433,6 +433,7 @@ public class FailureCause implements Serializable, Action, Describable<FailureCa
      * @return list of modifications
      */
     @JsonIgnore
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public List<FailureCauseModification> getAndInitiateModifications() {
         if ((modifications == null || modifications.isEmpty())
                 && id != null) {
@@ -456,6 +457,7 @@ public class FailureCause implements Serializable, Action, Describable<FailureCa
      * @return the categories as a String.
      */
     @JsonIgnore
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public String getCategoriesAsString() {
         if (categories == null || categories.isEmpty()) {
             return null;
@@ -515,6 +517,7 @@ public class FailureCause implements Serializable, Action, Describable<FailureCa
      * @return the latest modification
      */
     @JsonIgnore
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public FailureCauseModification getLatestModification() {
         List<FailureCauseModification> mods = getAndInitiateModifications();
         if (mods != null && !mods.isEmpty()) {
@@ -575,6 +578,7 @@ public class FailureCause implements Serializable, Action, Describable<FailureCa
      * @throws IllegalStateException if no ancestor is found.
      */
     @JsonIgnore
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public CauseManagement getAncestorCauseManagement() {
         StaplerRequest currentRequest = Stapler.getCurrentRequest();
         if (currentRequest == null) {
@@ -589,24 +593,28 @@ public class FailureCause implements Serializable, Action, Describable<FailureCa
 
     @Override
     @JsonIgnore
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public String getIconFileName() {
         return PluginImpl.getDefaultIcon();
     }
 
     @Override
     @JsonIgnore
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public String getDisplayName() {
         return name;
     }
 
     @Override
     @JsonIgnore
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public String getUrlName() {
         return id;
     }
 
 
     @Override
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public FailureCauseDescriptor getDescriptor() {
         return Jenkins.getInstance().getDescriptorByType(FailureCauseDescriptor.class);
     }
@@ -616,6 +624,7 @@ public class FailureCause implements Serializable, Action, Describable<FailureCa
      */
     @Extension
     @JsonIgnoreType
+    @com.fasterxml.jackson.annotation.JsonIgnoreType
     public static final class FailureCauseDescriptor extends Descriptor<FailureCause> {
 
         /**
