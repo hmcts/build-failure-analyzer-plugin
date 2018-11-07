@@ -90,6 +90,9 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.annotation.CheckForNull;
+import javax.annotation.Nonnull;
+
 import static com.cloudbees.plugins.credentials.CredentialsProvider.lookupCredentials;
 import static java.util.Arrays.asList;
 
@@ -151,6 +154,10 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
         return dbName;
     }
 
+    /**
+     * Get credential id.
+     * @return the credential id.
+     */
     public String getCredentialId() {
         return credentialId;
     }
@@ -165,7 +172,8 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
      * @param successfulLogging if all builds should be logged to the statistics DB
      */
     @DataBoundConstructor
-    public MongoDBKnowledgeBase(String host, int port, String credentialId, String dbName, boolean enableStatistics, boolean successfulLogging) {
+    public MongoDBKnowledgeBase(String host, int port, String credentialId, String dbName, boolean enableStatistics,
+                                boolean successfulLogging) {
         this.host = host;
         this.port = port;
         this.dbName = dbName;
@@ -1037,7 +1045,8 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
                                     .build()
                     );
                 } else {
-                    throw new CredentialNotFoundException(credentialId);
+                    logger.info("Couldn't find credential with id: " + credentialId);
+                    return null;
                 }
             } else {
                 mongo = new MongoClient(host, port);
@@ -1046,14 +1055,20 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
         return mongo;
     }
 
-    private UsernamePasswordCredentials lookupCredential(String credentialId) {
+    /**
+     * Looks up a credential
+     * @param credId the credential id
+     * @return the credential found or null
+     */
+    @CheckForNull
+    private UsernamePasswordCredentials lookupCredential(@Nonnull  String credId) {
         List<UsernamePasswordCredentials> credentials = lookupCredentials(
                 UsernamePasswordCredentials.class,
                 Jenkins.getInstance(),
                 ACL.SYSTEM,
                 Collections.emptyList()
         );
-        CredentialsMatcher matcher = CredentialsMatchers.withId(credentialId);
+        CredentialsMatcher matcher = CredentialsMatchers.withId(credId);
         return CredentialsMatchers.firstOrNull(credentials, matcher);
     }
 
@@ -1188,6 +1203,12 @@ public class MongoDBKnowledgeBase extends KnowledgeBase {
             }
         }
 
+        /**
+         * Finds eligible credentials.
+         * @param context the context
+         * @param credentialsId the credential id
+         * @return the credential id
+         */
         public ListBoxModel doFillCredentialIdItems(
                 @AncestorInPath Item context,
                 @QueryParameter String credentialsId

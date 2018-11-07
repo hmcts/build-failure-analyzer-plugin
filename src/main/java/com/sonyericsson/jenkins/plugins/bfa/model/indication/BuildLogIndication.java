@@ -27,7 +27,6 @@ package com.sonyericsson.jenkins.plugins.bfa.model.indication;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.sonyericsson.jenkins.plugins.bfa.Messages;
 import com.sonyericsson.jenkins.plugins.bfa.model.BuildLogFailureReader;
 import com.sonyericsson.jenkins.plugins.bfa.model.FailureReader;
@@ -54,7 +53,6 @@ import java.util.regex.PatternSyntaxException;
  *
  * @author Tomas Westling &lt;thomas.westling@sonyericsson.com&gt;
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, property = "@class")
 public class BuildLogIndication extends Indication {
 
     private static final long serialVersionUID = -2889792693081908532L;
