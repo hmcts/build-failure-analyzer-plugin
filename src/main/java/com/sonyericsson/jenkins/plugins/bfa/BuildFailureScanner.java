@@ -26,7 +26,6 @@
 package com.sonyericsson.jenkins.plugins.bfa;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
